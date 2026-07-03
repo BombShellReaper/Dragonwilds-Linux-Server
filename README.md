@@ -171,9 +171,14 @@ Copy and edit the following script:
     DIRPATH="/home/your_username/rs_server"             # Update with your actual path
     STEAMUSERNAME="YOUR_STEAM_USERNAME"
     
-    # Create the log directory and file safely
+    # Backup target settings
+    BACKUP_DIR="/home/your_username/backups"            # Directory where backups live
+    TIMESTAMP=$(date '+%Y-%m-%d_%H%M%S')
+    
+    # Create necessary directories
     LOGDIR=$(dirname "$LOGFILE")
     mkdir -p "$LOGDIR"    
+    mkdir -p "$BACKUP_DIR"
     touch "$LOGFILE"
     
     # Function to log messages with date/time
@@ -181,8 +186,32 @@ Copy and edit the following script:
         echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "$LOGFILE"
     }
     
-    # Run the update and start block
+    # Run the backup, update, and start block
     {
+        # --- STEP 1: EXECUTE 60-DAY ROTATING BACKUP ---
+        log "Initiating pre-update system backup..."
+        
+        if [ -d "$DIRPATH/RSDragonwilds/Saved" ]; then
+            # Package both SaveGames and Config folders into a compressed tarball
+            tar -czf "$BACKUP_DIR/dragonwilds_backup_$TIMESTAMP.tar.gz" -C "$DIRPATH/RSDragonwilds" Saved/
+            
+            if [ $? -eq 0 ]; then
+                log "Backup successfully created: dragonwilds_backup_$TIMESTAMP.tar.gz"
+            else
+                log "Warning: Backup compression encountered errors."
+            fi
+        else
+            log "Warning: Save directory not found. Skipping backup step."
+        fi
+    
+        # Enforce the strict 60-day retention rotation policy
+        log "Enforcing 60-day backup retention rotation policy..."
+        # Finds files in BACKUP_DIR matching the pattern, older than 60 days, and deletes them
+        find "$BACKUP_DIR" -name "dragonwilds_backup_*.tar.gz" -type f -mtime +60 -exec rm -f {} \;
+        log "Backup rotation check complete."
+    
+    
+        # --- STEP 2: GAME ENGINE SOFTWARE UPDATE ---
         log "Updating Dragonwilds..."
         if /usr/games/steamcmd +force_install_dir "$DIRPATH" +login "$STEAMUSERNAME" +app_update 4019830 validate +quit; then
             log "Update completed successfully."
@@ -190,6 +219,8 @@ Copy and edit the following script:
             log "Critical: Update failed."
         fi
     
+    
+        # --- STEP 3: START APPLICATION WINDOW ---
         log "Starting Dragonwilds server inside Screen session..."
         
         # Fire up the screen session safely without double-logging conflicts
@@ -302,6 +333,33 @@ Edit the following line to restrict su. Replace "*group_name*" with the one you 
     auth       required   pam_wheel.so group=group_name
 
 > **Example:** *auth       required   pam_wheel.so group=restrictedsu*
+
+## How to Restore a Server Backup (Optional)
+
+If an update breaks your server or a world file becomes corrupt, you can easily restore one of your automated backups.
+
+1. **Stop the server service completely:**
+   ```bash
+   sudo systemctl stop Dragonwilds.service
+   ```
+
+2. **Navigate to your backups directory and choose a backup file:**
+   ```bash
+   cd ~/backups
+   ls -la
+   ```
+
+3. **Extract the chosen backup over your existing files:**
+   *(Replace `TIMESTAMP` with the actual date code on your file)*
+   ```bash
+   tar -xzf dragonwilds_backup_TIMESTAMP.tar.gz -C ~/rs_server/RSDragonwilds/
+   ```
+
+4. **Restart the server service:**
+   ```bash
+   sudo systemctl start Dragonwilds.service
+   ```
+
 
 **Conclusion**
 
