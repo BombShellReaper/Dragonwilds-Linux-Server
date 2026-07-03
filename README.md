@@ -158,7 +158,7 @@ Change to the new directory. Change the "*name*" with the one you just created:
 
 Create a script. Change the "*name.sh*" with your desired script name.
 
-    nano name.sh
+    nano dragonwilds.sh
 
 Copy and edit the following script:
 
@@ -258,13 +258,15 @@ Switch to your sudo user that you used at the beginning. Replace "*your_username
     [Unit]
     Description=Dragonwilds Dedicated Game Server
     After=network.target
+    StartLimitIntervalSec=60
+    StartLimitBurst=3
     
     [Service]
     Type=forking
     User=your_server_user
     ExecStart=/path/to/your/fixed_script.sh
-    RemainAfterExit=yes
-    Restart=on-failure
+    RemainAfterExit=no
+    Restart=always
     RestartSec=10
     
     [Install]
