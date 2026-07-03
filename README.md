@@ -92,9 +92,9 @@ Replace "*your_username*" with the desired username.
 
 **Log in to your server with the new user account through cmd, PowerShell, PuTTY, etc. Use your preferred terminal emulator.**
 
-**Install Dragonwilds Server Files**
+**Install Dragonwilds Server Files** Replace "*YOUR_STEAM_USERNAME*" with the Steam username
 
-    steamcmd +force_install_dir /home/your_username/rs_server +login anonymous +app_update 4019830 validate +quit
+    steamcmd +force_install_dir /home/your_username/rs_server +login YOUR_STEAM_USERNAME +app_update 4019830 validate +quit
 
 **Navigate to the Server Directory**
 
@@ -168,11 +168,12 @@ Copy and edit the following script:
 
     # Log file
     LOGFILE="/path/to/your/logfile.txt"  # Update with your log file path
-    DIRPATH="/path/to/your/server" # Update with the directory containing "*name.sh*"
+    DIRPATH="/path/to/your/rs_server" # Update with your game server installation directory
+    STEAMUSERNAME="YOUR_STEAM_USERNAME"
 
     # Create the log directory if it doesn't exist
     LOGDIR=$(dirname "$LOGFILE")
-    mkdir -p "$LOGDIR"
+    mkdir -p "$LOGDIR"Bi    
 
     # Create the log file if it doesn't exist
     touch "$LOGFILE"
@@ -185,7 +186,7 @@ Copy and edit the following script:
     # Update Dragonwilds using steamcmd
     {
             log "Updating Dragonwilds..."
-        if /usr/games/steamcmd +force_install_dir "$DIRPATH" +login anonymous +app_update 4019830 validate +quit; then
+        if /usr/games/steamcmd +force_install_dir "$DIRPATH" +login "$STEAMUSERNAME" +app_update 4019830 validate +quit; then
             log "Update completed."
         else
             log "Update failed."
