@@ -266,7 +266,7 @@ Switch to your sudo user that you used at the beginning. Replace "*your_username
     User=your_server_user
     ExecStart=/path/to/your/fixed_script.sh
     RemainAfterExit=no
-    Restart=always
+    Restart=on-failure
     RestartSec=10
     
     [Install]
