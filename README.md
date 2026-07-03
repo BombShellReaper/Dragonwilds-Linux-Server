@@ -193,7 +193,7 @@ Copy and edit the following script:
         log "Starting Dragonwilds server inside Screen session..."
         
         # Fire up the screen session safely without double-logging conflicts
-        /usr/bin/screen -dmS Dragonwilds "$DIRPATH/RSDragonwilds/Binaries/Linux/RSDragonwildsServer.sh" -log -NewConsole -Port=7777
+        /usr/bin/screen -dmS Dragonwilds "$DIRPATH/RSDragonwildsServer.sh" -log -NewConsole -Port=7777
         
         # Small pause to let Screen initialize so systemd can register the fork
         sleep 2
