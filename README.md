@@ -9,7 +9,7 @@ This is a step-by-step guide on how to set up and run a Ubuntu RuneScape: Dragon
 
 **Prerequisites**
 
-- Ubuntu server (20.04 or higher recommended)
+- Ubuntu server
 - Basic knowledge of terminal commands
 - A user with sudo privileges
 - Your RuneScape: Dragonwilds **Player ID** (OwnerId) — found in-game at the bottom of the Settings Menu. The server will not start without it.
