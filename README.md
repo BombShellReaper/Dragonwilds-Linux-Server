@@ -98,7 +98,7 @@ Replace "*your_username*" with the desired username.
 
 **Navigate to the Server Directory**
 
-    cd rs_server/RSDragonwilds/Binaries/Linux
+    cd rs_server
 
 **Start the server**
 
