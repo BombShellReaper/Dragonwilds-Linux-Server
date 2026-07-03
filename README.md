@@ -334,7 +334,7 @@ Edit the following line to restrict su. Replace "*group_name*" with the one you 
 
 > **Example:** *auth       required   pam_wheel.so group=restrictedsu*
 
-## How to Restore a Server Backup (Optional)
+# Step 10: How to Restore a Server Backup (Optional)
 
 If an update breaks your server or a world file becomes corrupt, you can easily restore one of your automated backups.
 
