@@ -97,10 +97,13 @@ Replace "*your_username*" with the desired username.
     steamcmd +force_install_dir /home/your_username/rs_server +login YOUR_STEAM_USERNAME +app_update 4019830 validate +quit
 
 > [!WARNING]
-> `+login anonymous` is what Jagex's own documentation recommends, but it has been observed failing in practice for this app ID. Use a real Steam account that owns the free "RuneScape: Dragonwilds - Dedicated Servers" product instead — this is the confirmed working method.
+> `+login anonymous` is what Jagex's own documentation recommends, but it has been observed failing in practice for this app ID. Use a real Steam account that owns the free "RuneScape: Dragonwilds - Dedicated Servers"
+> product instead — this is the confirmed working method.
 
 > [!IMPORTANT]
-> This interactive step is mandatory before setting up the automated script in Step 7. SteamCMD caches the authenticated session locally after this first successful login, so subsequent scripted `+login YOUR_STEAM_USERNAME` calls (run unattended via cron or systemd) reuse the cached token instead of prompting for a password or Steam Guard code. If you skip this step, the automated update script will hang waiting for input it will never receive.
+> This interactive step is mandatory before setting up the automated script in Step 7. SteamCMD caches the authenticated session locally after this first successful login, so subsequent scripted `+login
+> YOUR_STEAM_USERNAME` calls (run unattended via cron or systemd) reuse the cached token instead of prompting for a password or Steam Guard code. If you skip this step, the automated update script will hang waiting for
+> input it will never receive.
 
 **Navigate to the Server Directory**
 
