@@ -163,48 +163,53 @@ Create a script. Change the "*name.sh*" with your desired script name.
 Copy and edit the following script:
 
     #!/bin/bash
-
-    #set -x     # Uncomment to enable debug output. This will show you each command as it’s executed, which can help identify where it fails
-
-    # Log file
-    LOGFILE="/path/to/your/logfile.txt"  # Update with your log file path
-    DIRPATH="/path/to/your/rs_server" # Update with your game server installation directory
+    
+    #set -x     # Uncomment to enable debug output.
+    
+    # Log file configuration
+    LOGFILE="/home/your_username/logs/dragonwilds.txt"  # Update with your actual path
+    DIRPATH="/home/your_username/rs_server"             # Update with your actual path
     STEAMUSERNAME="YOUR_STEAM_USERNAME"
-
-    # Create the log directory if it doesn't exist
+    
+    # Create the log directory and file safely
     LOGDIR=$(dirname "$LOGFILE")
     mkdir -p "$LOGDIR"    
-
-    # Create the log file if it doesn't exist
     touch "$LOGFILE"
-
+    
     # Function to log messages with date/time
     log() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "$LOGFILE"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "$LOGFILE"
     }
-
-    # Update Dragonwilds using steamcmd
+    
+    # Run the update and start block
     {
-            log "Updating Dragonwilds..."
+        log "Updating Dragonwilds..."
         if /usr/games/steamcmd +force_install_dir "$DIRPATH" +login "$STEAMUSERNAME" +app_update 4019830 validate +quit; then
-            log "Update completed."
+            log "Update completed successfully."
         else
-            log "Update failed."
+            log "Critical: Update failed."
         fi
-
-        # Start the Dragonwilds server
-            log "Starting Dragonwilds server..."
-        if /usr/bin/screen -dmS Dragonwilds "$DIRPATH/RSDragonwilds/Binaries/Linux/RSDragonwildsServer.sh" -log -NewConsole -Port=7777 2>> "$LOGFILE"; then
-            log "Dragonwilds server started successfully."
+    
+        log "Starting Dragonwilds server inside Screen session..."
+        
+        # Fire up the screen session safely without double-logging conflicts
+        /usr/bin/screen -dmS Dragonwilds "$DIRPATH/RSDragonwilds/Binaries/Linux/RSDragonwildsServer.sh" -log -NewConsole -Port=7777
+        
+        # Small pause to let Screen initialize so systemd can register the fork
+        sleep 2
+    
+        # Check if the screen session actually exists before claiming victory
+        if /usr/bin/screen -list | grep -q "Dragonwilds"; then
+            log "Dragonwilds server started successfully in background."
         else
-            log "Failed to start Dragonwilds server."
-            exit 1  # Exit if the server fails to start
+            log "Critical Error: Failed to start Dragonwilds screen session."
+            exit 1
         fi
     } 2>&1 | tee -a "$LOGFILE"
 
 Make the script executable by the user:
 
-    chmod u+x dragonwilds.sh
+    chmod +x dragonwilds.sh
 
 --------------------------------------------------------------------------------
 # Step 8: Create a Systemd Service (Optional)
@@ -220,24 +225,21 @@ Switch to your sudo user that you used at the beginning. Replace "*your_username
 **Add the following configuration:**
 
     [Unit]
-    Description=Your Application Description
+    Description=Dragonwilds Dedicated Game Server
     After=network.target
-
+    
     [Service]
-    Type=simple
-    User=youruser         # Replace with the username you created in the beginning
-    ExecStart=/path/to/your/executable/startup/script.sh      # Replace with your full script path
+    Type=forking
+    User=your_server_user
+    ExecStart=/path/to/your/fixed_script.sh
     RemainAfterExit=yes
     Restart=on-failure
-    RestartSec=5
-    StartLimitIntervalSec=60
-    StartLimitBurst=3
-    StandardOutput=append:/var/log/yourapp.log
-    StandardError=append:/var/log/yourapp.log
-
+    RestartSec=10
+    
     [Install]
     WantedBy=multi-user.target
-
+    
+    
 > **Example**
 > 
 > User=test
