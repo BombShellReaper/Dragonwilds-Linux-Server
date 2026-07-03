@@ -173,7 +173,7 @@ Copy and edit the following script:
 
     # Create the log directory if it doesn't exist
     LOGDIR=$(dirname "$LOGFILE")
-    mkdir -p "$LOGDIR"Bi    
+    mkdir -p "$LOGDIR"    
 
     # Create the log file if it doesn't exist
     touch "$LOGFILE"
