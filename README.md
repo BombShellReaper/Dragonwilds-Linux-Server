@@ -314,7 +314,7 @@ Reload systemctl & restart sshd.services
 
 These are some steps you can take to enhance the security of your SSH service.
 
-# Change Who Can Use the Switch User (su) Command
+## Change Who Can Use the Switch User (su) Command
 
 Make a new group for the su command. Replace "*group_name*" with your desired name for the new group.
 
