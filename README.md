@@ -110,7 +110,7 @@ Stop the server with Ctrl + C.
 
 **Edit DedicatedServer.ini**
 
-    nano /home/your_username/rs_server/RSDragonwilds/Saved/Config/Linux/DedicatedServer.ini
+    nano /home/your_username/rs_server/RSDragonwilds/Saved/Config/LinuxServer/DedicatedServer.ini
 
 **Add the following to DedicatedServer.ini**
 
