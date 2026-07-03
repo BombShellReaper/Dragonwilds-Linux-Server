@@ -12,7 +12,8 @@ This is a step-by-step guide on how to set up, configure, and run a RuneScape: D
 - Basic knowledge of terminal commands
 - Your RuneScape: Dragonwilds **Player ID** (Owner ID) — found in-game at the bottom of the Settings menu. The server will not start without it.
 
-> **Caution:** Directory structures and ports may differ based on your hardware configuration, network setup, and game version. Where I flag something below as unverified, confirm it against your own install before relying on it.
+> [!CAUTION]
+> Directory structures and ports may differ based on your hardware configuration, network setup, and game version.
 
 ---
 
@@ -26,7 +27,7 @@ sudo apt update && sudo apt full-upgrade -y && sudo apt autoremove -y
 
 **Enable multiverse and install SteamCMD**
 
-The `steamcmd` package lives in Ubuntu's `multiverse` repository, not `main`/`universe`. You need to enable it before installing, or the package won't be found:
+The `steamcmd` package lives in Ubuntu's `multiverse` repository, not `main`/`universe`.
 
 sudo apt install -y software-properties-common
 sudo add-apt-repository multiverse -y
@@ -34,7 +35,8 @@ sudo dpkg --add-architecture i386
 sudo apt update
 sudo apt install -y steamcmd
 
-> **Note:** During installation you'll be prompted to accept the Steam license agreement. Use the Tab key to select "Ok" and press Enter.
+> [!NOTE]
+> During installation you'll be prompted to accept the Steam license agreement. Use the Tab key to select "Ok" and press Enter.
 
 **Install Screen (Session Manager)**
 
@@ -52,6 +54,10 @@ sudo apt install openssh-server -y
 
 sudo apt install ufw -y
 
+**Install netcat (used for process/port checks)**
+
+sudo apt install netcat-openbsd -y
+
 ---
 
 # Step 3: Configure UFW (Uncomplicated Firewall)
@@ -60,15 +66,18 @@ Dragonwilds uses UDP for game traffic. Allow the default port:
 
 sudo ufw allow 7777/udp comment "Dragonwilds Game Port"
 
-> **Tip:** For added security, restrict this to a specific IP address or range instead of allowing all.
+> [!TIP]
+> For added security, restrict this to a specific IP address or range instead of allowing all.
 
-> **Note:** If you run additional server instances on the same machine, each needs its own port (7778, 7779, etc.).
+> [!NOTE]
+> If you run additional server instances on the same machine, each needs its own port (7778, 7779, etc.).
 
 **Allow SSH Connections Through UFW** (Optional)
 
 sudo ufw allow from any to any port 22 comment "SSH"
 
-> **Tip:** For added security, change "any" to a specific IP address or range.
+> [!TIP]
+> For added security, change "any" to a specific IP address or range.
 
 Set the default rule to deny incoming traffic (Optional)
 
@@ -90,7 +99,8 @@ Replace *your_username* with the desired username. This account will run and man
 
 sudo adduser your_username
 
-> **Note:** This will prompt you through the setup.
+> [!NOTE]
+> This will prompt you through the setup.
 
 **Reboot the system**
 
@@ -127,13 +137,12 @@ Once the console logs show a clean startup, stop the process with `Ctrl + C`.
 
 **Locate and edit DedicatedServer.ini**
 
-⚠️ **Unverified — check before trusting:** Sources disagree on the exact folder name here. The official Dragonwilds wiki and XGamingServer's docs both point to `Saved/Config/Linux/DedicatedServer.ini`, while a Steam Community post from someone self-hosting on Linux, and a separate community setup guide, both say `Saved/Config/LinuxServer/DedicatedServer.ini`. After your first run in Step 6, just check which folder actually exists on your system:
-
 find /home/your_username/rs_server/RSDragonwilds/Saved/Config -iname "DedicatedServer.ini"
 
-Then edit whichever path that returns:
-
 nano /home/your_username/rs_server/RSDragonwilds/Saved/Config/Linux/DedicatedServer.ini
+
+> [!WARNING]
+> Sources disagree on the exact folder name — some say `Saved/Config/Linux/`, others say `Saved/Config/LinuxServer/`. Run the `find` command above to confirm the real path on your box, then update the `CONFIG_FILE` variable in the Step 7 script to match.
 
 **Add or update the following in the config file:**
 
@@ -145,92 +154,140 @@ AdminPassword=YourSecretAdminPassword
 WorldPassword=
 Public=1
 
-> **Verified against the official wiki, XGamingServer's config docs, and a Steam Community post from a self-hosting Linux user — all three independently confirm this section header and these keys:**
->
-> - `OwnerId=` — **Required.** Your Player ID from the in-game Settings menu. The server won't start without it.
-> - `ServerName=` — Name shown to players browsing servers.
-> - `DefaultWorldName=` — Name of the world created on first startup.
-> - `AdminPassword=` — Grants Server Management access to anyone who knows it.
-> - `WorldPassword=` — Optional; supersedes any password already stored in the world save. Leave blank to allow anyone to join.
-> - `Public=1` — Announces your server via Epic Online Services (EOS). Set to `0` to keep it private/direct-connect only.
+- `OwnerId=` — **Required.** Your Player ID from the in-game Settings menu. The server won't start without it.
+- `ServerName=` — Name shown to players browsing servers.
+- `DefaultWorldName=` — Name of the world created on first startup.
+- `AdminPassword=` — Grants Server Management access to anyone who knows it.
+- `WorldPassword=` — Optional; supersedes any password already stored in the world save. Leave blank to allow anyone to join.
+- `Public=1` — Announces your server via Epic Online Services (EOS). Set to `0` to keep it private/direct-connect only.
 
-**Corrected from an earlier draft of this guide:** an earlier version used a `[MandatorySettings]` / `[OptionalSettings]` section layout with a `MaxPlayers=6` key. I could not find that section header or that key confirmed in any official documentation or first-hand server-operator source — it does not match the wiki, XGamingServer's docs, or the Steam Community thread. The 6-player cap appears to be a fixed engine limit rather than something you configure, so `MaxPlayers` has been dropped. Treat that layout as unconfirmed if you see it elsewhere.
-
-> **Important:** Don't edit `DedicatedServer.ini` while the server is running — changes made during runtime get overwritten and lost. Always stop the server first.
+> [!IMPORTANT]
+> Don't edit `DedicatedServer.ini` while the server is running — changes made during runtime get overwritten and lost. Always stop the server first.
 
 ---
 
-# Step 7: Create a Startup Script (Optional)
+# Step 7: Maintenance Script (Backup, Update, Restore, Restart)
 
-Return to the user's home directory
+> [!WARNING]
+> Unlike 7 Days to Die's Telnet interface, Dragonwilds has no documented RCON/Telnet console. There is no known way to broadcast an in-game warning or issue a remote `saveworld` command before shutdown. This script substitutes a clean `systemctl stop` (which sends SIGTERM and waits up to `TimeoutStopSec`) plus a process-exit verification loop — it cannot warn players in-chat the way your 7DTD script does.
 
-cd
+Create the script directory and file:
 
-Create a directory to place your scripts. Change "*name*" to your desired directory name:
+mkdir -p /home/your_username/scripts
+nano /home/your_username/scripts/dragonwilds_maintenance.sh
 
-mkdir name
-
-Change to the new directory. Change "*name*" to the one you just created:
-
-cd name
-
-Create a script. Change "*name.sh*" to your desired script name.
-
-nano name.sh
-
-Copy and edit the following script:
+Copy and edit the following:
 
 #!/bin/bash
 
-#set -x     # Uncomment to enable debug output. This will show you each command as it's executed, which can help identify where it fails
+LOGFILE="/var/log/dragonwilds_maintenance.log"
+SERVICE_NAME="Dragonwilds.service"
+DIRPATH="/home/your_username/rs_server"
+CONFIG_FILE="$DIRPATH/RSDragonwilds/Saved/Config/Linux/DedicatedServer.ini"   # Confirm path per Step 6 [!WARNING]
+BACKUP_DIR="/home/your_username/config_backups"
+WEBHOOK_URL=""
 
-# Log file
-LOGFILE="/path/to/your/logfile.txt"  # Update with your log file path
-DIRPATH="/path/to/your/server"       # Update with the directory containing the server files
-
-# Create the log directory if it doesn't exist
-LOGDIR=$(dirname "$LOGFILE")
-mkdir -p "$LOGDIR"
-
-# Create the log file if it doesn't exist
-touch "$LOGFILE"
-
-# Function to log messages with date/time
-log() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "$LOGFILE"
+send_discord_message() {
+    local message="$1"
+    if [[ -n "$WEBHOOK_URL" ]]; then
+        curl -H "Content-Type: application/json" -X POST -d "{
+            \"embeds\": [{
+                \"title\": \"🛠️ $message\",
+                \"color\": 16711680,
+                \"footer\": { \"text\": \"Dragonwilds Server Automation\" }
+            }]
+        }" "$WEBHOOK_URL" > /dev/null 2>&1
+    fi
 }
 
-# Update Dragonwilds using steamcmd
-{
-    log "Updating Dragonwilds..."
-    if /usr/games/steamcmd +force_install_dir "$DIRPATH" +login anonymous +app_update 4019830 validate +quit; then
-        log "Update completed."
-    else
-        log "Update failed."
-    fi
+log() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" | tee -a "$LOGFILE"
+}
 
-    # Make sure the server binary is executable (SteamCMD can reset permissions)
-    chmod +x "$DIRPATH/RSDragonwilds/Binaries/Linux/RSDragonwildsServer.sh"
+mkdir -p "$(dirname "$LOGFILE")"
+mkdir -p "$BACKUP_DIR"
+touch "$LOGFILE"
 
-    # Start the Dragonwilds server
-    log "Starting Dragonwilds server..."
-    if /usr/bin/screen -dmS Dragonwilds "$DIRPATH/RSDragonwilds/Binaries/Linux/RSDragonwildsServer.sh" -log -NewConsole -Port=7777 2>> "$LOGFILE"; then
-        log "Dragonwilds server started successfully."
-    else
-        log "Failed to start Dragonwilds server."
-        exit 1  # Exit if the server fails to start
-    fi
-} 2>&1 | tee -a "$LOGFILE"
+log "--- STARTING MAINTENANCE ---"
+send_discord_message "Maintenance Started: Stopping Server"
 
-Make the script executable by the user:
+# --- 1. GRACEFUL STOP (no in-game warning available — see [!WARNING] above) ---
+if systemctl is-active --quiet "$SERVICE_NAME"; then
+    log "Service active. Requesting stop..."
+    sudo systemctl stop "$SERVICE_NAME"
+else
+    log "Service already stopped."
+fi
 
-chmod u+x name.sh
+# --- 2. VERIFY PROCESS EXIT ---
+MAX_WAIT=60; COUNT=0
+while pgrep -f "RSDragonwildsServer" > /dev/null && [ $COUNT -lt $MAX_WAIT ]; do
+    sleep 2; ((COUNT++))
+done
 
-> **Note:** SteamCMD's `validate` flag will overwrite anything it doesn't recognize as part of the base install — including your `DedicatedServer.ini` if it's not otherwise excluded. If you find your config keeps resetting after updates, back up the ini and restore it after each `app_update`, or switch to a staging-directory + `rsync` update pattern.
+if pgrep -f "RSDragonwildsServer" > /dev/null; then
+    log "WARNING: Process did not exit cleanly after ${MAX_WAIT} checks. Forcing kill."
+    pkill -f "RSDragonwildsServer"
+    send_discord_message "Warning: Server did not stop cleanly, force-killed."
+else
+    log "Process exited cleanly."
+fi
+
+# --- 3. BACK UP CONFIG BEFORE UPDATE ---
+if [ -f "$CONFIG_FILE" ]; then
+    BACKUP_FILE="$BACKUP_DIR/DedicatedServer.ini.$(date '+%Y%m%d_%H%M%S').bak"
+    cp "$CONFIG_FILE" "$BACKUP_FILE"
+    cp "$CONFIG_FILE" "$BACKUP_DIR/DedicatedServer.ini.latest.bak"
+    log "Config backed up to $BACKUP_FILE"
+else
+    log "WARNING: No existing config found at $CONFIG_FILE — skipping pre-update backup."
+fi
+
+# --- 4. UPDATE VIA STEAMCMD ---
+log "Updating Dragonwilds..."
+if /usr/games/steamcmd +force_install_dir "$DIRPATH" +login anonymous +app_update 4019830 validate +quit; then
+    log "Update completed."
+    send_discord_message "Update completed successfully."
+else
+    log "Update failed."
+    send_discord_message "Update FAILED — check logs."
+fi
+
+# --- 5. RESTORE CONFIG ---
+if [ -f "$BACKUP_DIR/DedicatedServer.ini.latest.bak" ]; then
+    cp "$BACKUP_DIR/DedicatedServer.ini.latest.bak" "$CONFIG_FILE"
+    log "Config restored from backup after update."
+fi
+
+# --- 6. PERMISSIONS ---
+chmod +x "$DIRPATH/RSDragonwilds/Binaries/Linux/RSDragonwildsServer.sh"
+chmod 600 "$CONFIG_FILE" 2>/dev/null
+
+# --- 7. RESTART SERVICE ---
+log "Restarting service..."
+if sudo systemctl start "$SERVICE_NAME"; then
+    log "Service started successfully."
+    send_discord_message "Maintenance Complete: Server is back online."
+else
+    log "Service failed to start."
+    send_discord_message "Maintenance FAILED: Server did not start — check logs."
+fi
+
+log "--- MAINTENANCE COMPLETE ---"
+
+Make it executable:
+
+chmod +x /home/your_username/scripts/dragonwilds_maintenance.sh
+
+> [!TIP]
+> Point cron or a systemd timer at this script instead of running the raw `app_update` loop from earlier drafts of this guide — it now handles the stop/backup/update/restore/restart cycle in one call, with Discord visibility at each stage, matching the pattern from your 7 Days to Die script.
+
+> [!NOTE]
+> This script assumes `systemctl stop`/`start` on the `Dragonwilds.service` unit from Step 8 below — set that up first, or swap in your own start/stop mechanism if you're not using systemd.
 
 ---
 
-# Step 8: Create a Systemd Service (Optional)
+# Step 8: Create a Systemd Service
 
 Switch to your sudo user that you used at the beginning. Replace "*your_username*" with the actual username.
 
@@ -247,10 +304,12 @@ Description=RuneScape Dragonwilds Dedicated Server
 After=network.target
 
 [Service]
-Type=simple
+Type=forking
 User=youruser         # Replace with the username you created in Step 4
-ExecStart=/path/to/your/executable/startup/script.sh      # Replace with your full script path
-RemainAfterExit=yes
+WorkingDirectory=/home/your_username/rs_server/RSDragonwilds/Binaries/Linux
+ExecStart=/usr/bin/screen -dmS Dragonwilds /home/your_username/rs_server/RSDragonwilds/Binaries/Linux/RSDragonwildsServer.sh -log -NewConsole -Port=7777
+ExecStop=/usr/bin/screen -S Dragonwilds -X quit
+TimeoutStopSec=30
 Restart=on-failure
 RestartSec=5
 StartLimitIntervalSec=60
@@ -261,11 +320,8 @@ StandardError=append:/var/log/dragonwilds.log
 [Install]
 WantedBy=multi-user.target
 
-> **Example**
->
-> User=test
->
-> ExecStart=/home/test/scripts/name.sh
+> [!NOTE]
+> Switched to `Type=forking` with a `screen`-wrapped `ExecStart`/`ExecStop` pair here, since the maintenance script in Step 7 now drives updates via `systemctl stop`/`start` rather than the script itself launching the binary directly.
 
 **Enable and Start the Service**
 
@@ -273,11 +329,12 @@ sudo systemctl daemon-reload
 sudo systemctl enable Dragonwilds.service
 sudo systemctl start Dragonwilds.service
 
-> **Important:** This systemd service, along with the accompanying script, ensures that your server automatically starts after a reboot and updates itself before launching.
+> [!IMPORTANT]
+> Run the Step 7 maintenance script (via cron or manually) to handle updates — don't run `app_update` directly against a live install, since it can overwrite `DedicatedServer.ini`.
 
 ---
 
-# Step 9: Hardening (Optional)
+# Step 9: Hardening
 
 Login with the sudo user and edit the sshd_config file
 
@@ -308,7 +365,8 @@ Make a new group for the su command. Replace "*group_name*" with your desired na
 
 sudo groupadd group_name
 
-> **Example:** `sudo groupadd restrictedsu`
+> [!TIP]
+> Example: `sudo groupadd restrictedsu`
 
 **Edit who can use the *su* command**
 
@@ -318,13 +376,21 @@ Edit the following line to restrict su. Replace "*group_name*" with the one you 
 
 auth       required   pam_wheel.so group=group_name
 
-> **Example:** `auth required pam_wheel.so group=restrictedsu`
+> [!TIP]
+> Example: `auth required pam_wheel.so group=restrictedsu`
+
+## Lock Down Config File Permissions
+
+The `AdminPassword` and `WorldPassword` values sit in plaintext. Restrict read access to the service user only:
+
+chmod 600 /home/your_username/rs_server/RSDragonwilds/Saved/Config/Linux/DedicatedServer.ini
+chmod 700 /home/your_username/config_backups
 
 ---
 
 **Conclusion**
 
-You have successfully set up your RuneScape: Dragonwilds dedicated server! For further customization, refer to the game's official documentation.
+You have successfully set up your RuneScape: Dragonwilds dedicated server, with automated backup/update/restore built into a maintenance script and Discord visibility into every stage. For further customization, refer to the game's official documentation.
 
 **References**
 
