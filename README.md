@@ -127,6 +127,8 @@ Copy and edit the following - update `DIRPATH`, `SERVER_PORT`, `BACKUP_DIR`, and
     PID_FILE="$PID_DIR/dragonwilds.pid"
     GAME_PROCESS_NAME="RSDragonwildsServer-Linux-Shipping"
 
+    export SCREENDIR="/home/your_username/.screen"
+
     mkdir -p "$LOG_DIR"
     mkdir -p "$BACKUP_DIR"
     mkdir -p "$PID_DIR"
@@ -254,6 +256,7 @@ Copy and edit the following:
     PID_DIR="/home/your_username/.run"
     PID_FILE="$PID_DIR/dragonwilds.pid"
 
+    export SCREENDIR="/home/your_username/.screen"
     mkdir -p "$LOG_DIR"
 
     log() {
@@ -332,6 +335,8 @@ Copy and edit the following, updating paths and `WEBHOOK_URL` (optional) to matc
     WEBHOOK_URL=""
     IMAGE_URL=""
     DISCORD_FOOTER="Server Maintenance Automation"
+
+    export SCREENDIR="/home/your_username/.screen"
 
     VERSION_FILE="$SERVER_DIR/current_version.txt"
     MANIFEST_FILE="$SERVER_DIR/steamapps/appmanifest_${STEAM_APP_ID}.acf"
@@ -468,18 +473,19 @@ Add:
 
     sudo nano /etc/systemd/system/Dragonwilds.service
 
-**Add the following configuration** - replace `your_username` throughout:
+**Base configuration** - replace `your_username` throughout:
 
     [Unit]
     Description=Your Dragonwilds Dedicated Server
     After=network.target network-online.target
     Wants=network-online.target
-    StartLimitIntervalSec=60
+    StartLimitIntervalSec=1200
     StartLimitBurst=3
 
     [Service]
     Type=forking
     User=your_username
+    Group=your_username
     WorkingDirectory=/home/your_username
     ExecStart=/home/your_username/.scripts/start_server.sh
     ExecStop=/home/your_username/.scripts/stop_server.sh
@@ -491,25 +497,70 @@ Add:
     RemainAfterExit=no
     Restart=always
     RestartSec=60
-    StandardOutput=null
-    StandardError=null
+    StandardOutput=journal
+    StandardError=journal
 
     [Install]
     WantedBy=multi-user.target
 
 > [!Important]
-> - **`Restart=always`, not `Restart=on-failure`**: `on-failure` does not treat a clean `SIGINT`-terminated exit as a failure - which is exactly how this game's own documented `Ctrl+C` shutdown, and this stop script's SIGKILL fallback, terminate the process. Under `on-failure`, a normal graceful stop would silently never trigger systemd's own auto-restart. This was found and fixed on a sibling server in the same infrastructure via a real, reproduced incident.
-> - **`TimeoutStopSec=120`**: this game's stop script has no player-facing countdown (no RCON/API to broadcast warnings through), so its worst-case runtime is much shorter than a countdown-based stop script - roughly 60-65s. 120s gives comfortable margin without being wastefully large.
-> - **`TimeoutStartSec=600`**: an untested placeholder, not measured runtime the way `TimeoutStopSec` is here - tighten it once you've watched a real update cycle complete and know your actual timing.
-> - **`StartLimitIntervalSec=60` / `StartLimitBurst=3`**: caps systemd to 3 restart attempts per minute before giving up and marking the unit `failed`, rather than retrying forever if something is genuinely broken.
+> `Restart=always`, not `on-failure` - `on-failure` doesn't count a `SIGINT`-terminated exit (this game's Ctrl+C shutdown method) as a failure, so it can silently skip auto-restart. Found and fixed on a sibling server in the same infrastructure via a real reproduced incident.
 
-**Enable and Start the Service**
+> [!Note]
+> `TimeoutStopSec=120` - no player-facing countdown here (no RCON/API), so worst-case runtime is short (~60-65s). `TimeoutStartSec=600` is an untested placeholder - tighten once measured.
+
+> [!Note]
+> `StartLimitIntervalSec=1200`/`StartLimitBurst=3` caps retries to 3 per 20 minutes. The window must exceed `TimeoutStartSec`, or the safety net never triggers.
+
+**Enable, start, and confirm before moving on:**
 
     sudo systemctl daemon-reload
     sudo systemctl enable Dragonwilds.service
     sudo systemctl start Dragonwilds.service
     sudo systemctl status Dragonwilds.service
     cat /home/your_username/.run/dragonwilds.pid
+
+--------------------------------------------------------------------------------
+## Recommended: Harden the Service
+
+Layer this on once the base unit is confirmed working - gives you a simpler fallback if anything here needs debugging.
+
+**Lock down the scripts** (files before directory - your own shell expands `*.sh` before `sudo` runs):
+
+    sudo chown root:your_username /home/your_username/.scripts/*.sh
+    sudo chmod 750 /home/your_username/.scripts/*.sh
+    sudo chown root:your_username /home/your_username/.scripts
+    sudo chmod 750 /home/your_username/.scripts
+
+**Add to `[Service]`:**
+
+    Environment="SCREENDIR=/home/your_username/.screen"
+    ExecStartPre=+/bin/mkdir -p /home/your_username/.screen
+    ExecStartPre=+/bin/chown -R your_username:your_username /home/your_username/.screen
+    ExecStartPre=+/bin/chmod 700 /home/your_username/.screen
+    NoNewPrivileges=true
+    PrivateTmp=true
+    ProtectSystem=strict
+    ProtectHome=read-only
+    ReadWritePaths=/home/your_username/rs_server
+    ReadWritePaths=/home/your_username/.run
+    ReadWritePaths=/home/your_username/.flock
+    ReadWritePaths=-/home/your_username/.screen
+    ReadWritePaths=/home/your_username/logs
+    ReadWritePaths=/home/your_username/backups
+    ReadWritePaths=/home/your_username/.local/share/Steam
+    ReadWritePaths=-/home/your_username/.steam
+
+> [!Important]
+> `+` on `ExecStartPre=` is required - without it, these setup commands run inside the same sandbox as the main process, creating a circular dependency (sandbox needs `.screen` to exist to bind-mount it; nothing outside the sandbox exists yet to create it). Produces `status=217/USER` reproducibly. `+` runs the setup fully unsandboxed first, breaking the cycle. Confirmed working with `ProtectHome=read-only` on a live server.
+
+**Reload and confirm:**
+
+    sudo systemctl daemon-reload
+    sudo systemctl reset-failed Dragonwilds.service
+    sudo systemctl restart Dragonwilds.service
+    sudo systemctl status Dragonwilds.service
+    sudo systemd-analyze security Dragonwilds.service
 
 --------------------------------------------------------------------------------
 # Step 11: Create the Host-Level Maintenance Script (Optional)
@@ -644,6 +695,8 @@ Reload and restart
     sudo systemctl daemon-reload
     sudo systemctl restart ssh.service
 
+![image](https://github.com/user-attachments/assets/f12f25af-807d-4981-9e53-ebe2ab3d2688)
+
 **Change Who Can Use the Switch User (su) Command**
 
     sudo groupadd restrictedsu
@@ -653,45 +706,10 @@ Add the line:
 
     auth       required   pam_wheel.so group=restrictedsu
 
+![image](https://github.com/user-attachments/assets/3d3c941b-aadd-4bdb-b736-e2fb4c7b5c8b)
+
 > [!TIP]
 > If you want to trigger `start_server.sh`/`stop_server.sh` remotely (e.g. from a control panel or automation tool) without giving that system a general-purpose shell, consider a forced-command SSH key restricted to exactly one script (`command="/home/your_username/.scripts/start_server.sh",restrict ssh-ed25519 ...` in `authorized_keys`) instead of a normal login key. This limits what a leaked key could ever be used for, even in the worst case.
-
-## Lock Down the Operational Scripts
-
-By default, `start_server.sh`, `stop_server.sh`, and `update_checker.sh` are owned by the same user the game process itself runs as. If the running Dragonwilds binary is ever compromised, that account's write access means an attacker could overwrite these scripts - the next time systemd or cron triggers them, your own automation would run the attacker's payload.
-
-    sudo chown root:your_username /home/your_username/.scripts
-    sudo chmod 750 /home/your_username/.scripts
-    sudo chown root:your_username /home/your_username/.scripts/*.sh
-    sudo chmod 750 /home/your_username/.scripts/*.sh
-
-> [!Important]
-> Lock down both the **directory** and the **files**. Locking only the files isn't enough - if the directory itself is still writable, an attacker can delete and recreate a script even without write access to its contents.
-
-## Sandbox the systemd Service
-
-Add the following under `[Service]` in `/etc/systemd/system/Dragonwilds.service` (Step 10):
-
-    NoNewPrivileges=true
-    PrivateTmp=true
-    ProtectSystem=strict
-    ProtectHome=read-only
-    ReadWritePaths=/home/your_username/rs_server
-    ReadWritePaths=/home/your_username/.run
-    ReadWritePaths=/home/your_username/.flock
-    ReadWritePaths=/home/your_username/logs
-    ReadWritePaths=/home/your_username/backups
-    ReadWritePaths=/home/your_username/.local/share/Steam
-
-> [!Caution]
-> `ProtectSystem=strict` and `ProtectHome=read-only` make essentially the entire filesystem read-only to this service by default - every path it needs to write to must be listed explicitly, or the write fails silently and something breaks (most likely the SteamCMD update or the backup/log/PID-file writes). If you installed SteamCMD differently, confirm its actual cache path first.
-
-**Test before trusting this in production** - reload, restart, and watch a full update cycle complete successfully before considering this done:
-
-    sudo systemctl daemon-reload
-    sudo systemctl restart Dragonwilds.service
-    sudo journalctl -u Dragonwilds.service -f
-    sudo systemd-analyze security Dragonwilds.service
 
 --------------------------------------------------------------------------------
 
